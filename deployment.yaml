@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fluxcd-nextcloud-talk-bridge-secret
+  namespace: flux-system
+stringData:
+  NEXTCLOUD_WEBHOOK_URL: "https://your-nextcloud-instance.com/ocs/v2.php/apps/spreed/api/v1/bot/<token>/message"
+  SHARED_SECRET: "your-shared-secret"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluxcd-nextcloud-talk-bridge
+  namespace: flux-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fluxcd-nextcloud-talk-bridge
+  template:
+    metadata:
+      labels:
+        app: fluxcd-nextcloud-talk-bridge
+    spec:
+      containers:
+        - name: bridge
+          image: ${YOUR_REGISTRY}/fluxcd-nextcloud-talk-bridge:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: fluxcd-nextcloud-talk-bridge-secret
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluxcd-nextcloud-talk-bridge
+  namespace: flux-system
+spec:
+  selector:
+    app: fluxcd-nextcloud-talk-bridge
+  ports:
+    - port: 80
+      targetPort: 8080
